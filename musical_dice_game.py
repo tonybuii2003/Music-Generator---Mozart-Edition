@@ -5,9 +5,10 @@
 # 29/09/21
 # musical_dice_game.py
 
+import argparse
 import random
-import simpleaudio as player
 import wave
+from pathlib import Path
 # Each of these lists corresponds to one column of the table used for the minuet
 # portion Mozart's Musical Dice Game. The first two elements are set to None
 # because, there is no way for a roll of two dice to return a 0 or a 1. Only the
@@ -101,10 +102,10 @@ def trio_filename(tmid):
 
 
 def roll_dice(num):
-    sum = 0
+    total = 0
     for i in range(0, num):
-        sum += random.randint(1, 6)
-    return sum
+        total += random.randint(1, 6)
+    return total
 
 # Inside this main function you will randomly select 16 measures from the minuet
 # table, one from each column of the minuet table, and then randomly select, 16
@@ -116,13 +117,18 @@ def roll_dice(num):
 # playing the next measure.
 
 
-def construct_waltz():
+def construct_waltz(sample_dir: Path):
+    """Assemble and play the minuet and trio based on the provided sample folder."""
+    try:
+        import simpleaudio as player  # noqa: WPS433 (import inside function for optional dependency)
+    except ModuleNotFoundError as exc:
+        raise SystemExit(
+            "simpleaudio is required to play audio. Install it with 'pip install simpleaudio'."
+        ) from exc
+
     column1 = []
     column2 = []
     play = []
-    # file directory
-    fileDirectory = (
-        "/Volumes/GoogleDrive/My Drive/SBU/TERMS/Fall_2021/IAE101/project1/mozart/")
     for i in minuet_table:  # roll the dice twice then add the element into column1
         num1 = i[roll_dice(2)]
         column1.append(num1)
@@ -131,20 +137,39 @@ def construct_waltz():
         column2.append(num2)
     for i in column1:
         # format every element inside column1 into M'element'.wav then add them to play[]
-        play.append(fileDirectory+minuet_filename(str(i)))
+        play.append(sample_dir / minuet_filename(str(i)))
     for i in column2:
         # format every element inside column1 into T'element'.wav then add them to play[]
-        play.append(fileDirectory+trio_filename(str(i)))
+        play.append(sample_dir / trio_filename(str(i)))
     for i in play:  # read every element in play[] using simpleaudio. The elements in play are files' directory
-        wave_read = wave.open(i, 'rb')
-        audio_data = wave_read.readframes(wave_read.getnframes())
-        num_channels = wave_read.getnchannels()
-        bytes_per_sample = wave_read.getsampwidth()
-        sample_rate = wave_read.getframerate()
+        with wave.open(str(i), 'rb') as wave_read:
+            audio_data = wave_read.readframes(wave_read.getnframes())
+            num_channels = wave_read.getnchannels()
+            bytes_per_sample = wave_read.getsampwidth()
+            sample_rate = wave_read.getframerate()
         play_obj = player.play_buffer(
             audio_data, num_channels, bytes_per_sample, sample_rate)
         play_obj.wait_done()
 
 
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate and play a Mozart Musical Dice Game waltz.")
+    parser.add_argument(
+        "--samples",
+        type=Path,
+        default=Path(__file__).resolve().parent / "mozart",
+        help="Path to the folder containing Mozart sample WAV files "
+             "(default: %(default)s)",
+    )
+    args = parser.parse_args()
+
+    sample_dir = args.samples.expanduser().resolve()
+    if not sample_dir.exists():
+        raise SystemExit(f"Sample directory not found: {sample_dir}")
+
+    construct_waltz(sample_dir)
+
+
 if __name__ == "__main__":
-    construct_waltz()
+    main()
